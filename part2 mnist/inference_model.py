@@ -18,7 +18,7 @@ def init_from_params(args, exe, program):
         raise Warning("the checkpotin path does not exist.")
         return False
 
-    fluid.io.load_persistables(executor = exe, dirname=args.init_from_params, main_program = program)
+    fluid.io.load_persistables(executor = exe, dirname=args.init_from_params, main_program = program, filename = "params.pdparams")
     print("init model from params at %s" % (args.init_from_params))
 
     return True
@@ -80,7 +80,9 @@ def do_save_inference_model(args):
         feeded_var_names = [image.name],
         target_vars = [prediction],
         executor = exe,
-        main_program = test_prog)
+        main_program = test_prog,
+        model_filename = "model.pdmodel",
+        params_filename = "params.pdparams")
 
     print("save inference model at %s" % (args.inference_model_dir))
 

@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
         if args.do_eval:
             acc = do_eval(args, predictions)
-            print("evaluation accuracy %.3f percent" % (acc * 100))
+            print("evaluation accuaracy %.3f percent" % (acc * 100))
 
     if args.do_save_inference_model:
         do_save_inference_model(args)

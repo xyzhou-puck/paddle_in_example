@@ -18,7 +18,7 @@ def init_from_checkpoint(args, exe, program):
         raise Warning("the checkpotin path does not exist.")
         return False
 
-    fluid.io.load_persistables(executor = exe, dirname=args.init_from_checkpoint, main_program = program)
+    fluid.io.load_persistables(executor = exe, dirname=args.init_from_checkpoint, main_program = program, filename = "checkpoint.pdparams")
     print("init model from checkpoint at %s" % (args.init_from_checkpoint))
 
     return True
@@ -32,7 +32,7 @@ def save_checkpoint(args, exe, program, dirname):
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
 
-    fluid.io.save_persistables(exe, checkpoint_dir + "/" + dirname, main_program = program)
+    fluid.io.save_persistables(exe, checkpoint_dir + "/" + dirname, main_program = program, filename = "params.pdparams")
     print("save checkpoint at %s" % (checkpoint_dir + "/" + dirname))
 
     return True
@@ -46,7 +46,7 @@ def save_param(args, exe, program, dirname):
     if not os.path.exists(param_dir):
         os.mkdir(param_dir)
 
-    fluid.io.save_params(exe, param_dir + "/" + dirname, main_program = program)
+    fluid.io.save_params(exe, param_dir + "/" + dirname, main_program = program, filename = "params.pdparams")
     print("save parameters at %s" % (param_dir + "/" + dirname))
 
     return True
@@ -80,8 +80,9 @@ def do_train(args):
                     buf_size = 500),
                 batch_size = args.batch_size)
 
-            reader.decorate_sample_list_generator(generator)
+            test_data = next(generator())
 
+            reader.decorate_sample_list_generator(generator)
             
             # define the network
 

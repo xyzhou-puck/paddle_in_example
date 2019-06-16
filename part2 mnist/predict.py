@@ -35,7 +35,7 @@ def init_from_params(args, exe, program):
         raise Warning("the checkpotin path does not exist.")
         return False
 
-    fluid.io.load_params(executor = exe, dirname=args.init_from_params, main_program = program)
+    fluid.io.load_params(executor = exe, dirname=args.init_from_params, main_program = program, filename = "params.pdparams")
     print("init model from params at %s" % (args.init_from_params))
 
     return True
