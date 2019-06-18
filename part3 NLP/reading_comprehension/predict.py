@@ -140,6 +140,8 @@ def do_predict(args):
 
     # start predicting
 
+    compiled_test_prog = fluid.CompiledProgram(test_prog)
+
     all_results = []
     RawResult = collections.namedtuple("RawResult", [
         "unique_id", "top_k_start_log_probs", "top_k_start_indexes",
@@ -150,7 +152,7 @@ def do_predict(args):
         try:
 
             np_unique_ids, np_top_k_start_log_probs, np_top_k_start_indexes, \
-                np_top_k_end_log_probs, np_top_k_end_indexes = exe.run(test_prog, fetch_list = fetch_list)
+                np_top_k_end_log_probs, np_top_k_end_indexes = exe.run(compiled_test_prog, fetch_list = fetch_list)
 
             for idx in range(np_unique_ids.shape[0]):
                 if len(all_results) % 1000 == 0:
