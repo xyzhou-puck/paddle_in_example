@@ -1,7 +1,7 @@
 #encoding=utf8
 import os
 import sys
-sys.path.append("../")
+sys.path.append("../../")
 import numpy as np
 import argparse
 import collections
