@@ -135,7 +135,7 @@ def do_train(args):
                 dev_count = int(os.environ.get('CPU_NUM', multiprocessing.cpu_count()))
 
             processor = DataProcessor(
-                vocab_path = "./data/pretrain_models/bert_large_cased/vocab.txt",
+                vocab_path = args.vocab_path,
                 do_lower_case = args.do_lower_case,
                 max_seq_length = args.max_seq_len,
                 in_tokens = False,

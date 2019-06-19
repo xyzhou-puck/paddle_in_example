@@ -84,25 +84,6 @@ def do_predict(args):
                 feed_list=[src_ids, pos_ids, sent_ids, input_mask, input_span_mask, unique_id],
                 capacity=200, iterable=False)
 
-            processor = DataProcessor(
-                vocab_path = "./data/pretrain_models/bert_large_cased/vocab.txt",
-                do_lower_case = args.do_lower_case,
-                max_seq_length = args.max_seq_len,
-                in_tokens = False,
-                doc_stride = args.doc_stride,
-                do_stride = args.do_stride,
-                max_query_length = args.max_query_len)
-
-            generator = processor.data_generator(
-                data_path = args.predict_file,
-                batch_size = args.batch_size,
-                phase = "predict",
-                shuffle = False,
-                dev_count = 1,
-                epoch = 1)
-
-            reader.decorate_batch_generator(generator)
-
             # define the network
 
             predictions = create_net(is_training = False, 
@@ -146,6 +127,25 @@ def do_predict(args):
     RawResult = collections.namedtuple("RawResult", [
         "unique_id", "top_k_start_log_probs", "top_k_start_indexes",
         "top_k_end_log_probs", "top_k_end_indexes"])
+
+    processor = DataProcessor(
+        vocab_path = args.vocab_path,
+        do_lower_case = args.do_lower_case,
+        max_seq_length = args.max_seq_len,
+        in_tokens = False,
+        doc_stride = args.doc_stride,
+        do_stride = args.do_stride,
+        max_query_length = args.max_query_len)
+
+    generator = processor.data_generator(
+        data_path = args.predict_file,
+        batch_size = args.batch_size,
+        phase = "predict",
+        shuffle = False,
+        dev_count = 1,
+        epoch = 1)
+
+    reader.decorate_batch_generator(generator)
 
     reader.start()
     while True:
