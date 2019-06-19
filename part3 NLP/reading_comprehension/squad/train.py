@@ -43,7 +43,7 @@ def init_from_checkpoint(args, exe, program):
         raise Warning("the checkpoint path does not exist.")
         return False
 
-    fluid.io.load_persistables(executor = exe, dirname=args.init_from_checkpoint, main_program = program, filename = "checkpoint.pdparams")
+    fluid.io.load_persistables(executor = exe, dirname=args.init_from_checkpoint, main_program = program, filename = "checkpoint.pdckpt")
     print("init model from checkpoint at %s" % (args.init_from_checkpoint))
 
     return True
@@ -57,7 +57,7 @@ def save_checkpoint(args, exe, program, dirname):
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
 
-    fluid.io.save_persistables(exe, checkpoint_dir + "/" + dirname, main_program = program, filename = "checkpoint.pdparams")
+    fluid.io.save_persistables(exe, checkpoint_dir + "/" + dirname, main_program = program, filename = "checkpoint.pdckpt")
     print("save checkpoint at %s" % (checkpoint_dir + "/" + dirname))
 
     return True
@@ -119,25 +119,6 @@ def do_train(args):
                     start_positions, end_positions, is_null_answer],
                 capacity=200, iterable=False)
 
-            processor = DataProcessor(
-                vocab_path = "./data/pretrain_models/bert_large_cased/vocab.txt",
-                do_lower_case = args.do_lower_case,
-                max_seq_length = args.max_seq_len,
-                in_tokens = False,
-                doc_stride = args.doc_stride,
-                do_stride = args.do_stride,
-                max_query_length = args.max_query_len)
-
-            generator = processor.data_generator(
-                data_path = args.training_file,
-                batch_size = args.batch_size,
-                phase = "train",
-                shuffle = True,
-                dev_count = 4,
-                epoch = args.epoch_num)
-
-            reader.decorate_batch_generator(generator)
-
             # define the network
 
             loss = create_net(is_training = True, 
@@ -152,6 +133,15 @@ def do_train(args):
                 dev_count = fluid.core.get_cuda_device_count()
             else:
                 dev_count = int(os.environ.get('CPU_NUM', multiprocessing.cpu_count()))
+
+            processor = DataProcessor(
+                vocab_path = "./data/pretrain_models/bert_large_cased/vocab.txt",
+                do_lower_case = args.do_lower_case,
+                max_seq_length = args.max_seq_len,
+                in_tokens = False,
+                doc_stride = args.doc_stride,
+                do_stride = args.do_stride,
+                max_query_length = args.max_query_len)
 
             num_train_examples = processor.get_num_examples(phase='train')
             max_train_steps = args.epoch_num * num_train_examples // dev_count // args.batch_size
@@ -196,6 +186,15 @@ def do_train(args):
         loss_name = loss.name, build_strategy = build_strategy)
 
     # start training
+    generator = processor.data_generator(
+        data_path = args.training_file,
+        batch_size = args.batch_size,
+        phase = "train",
+        shuffle = True,
+        dev_count = 4,
+        epoch = args.epoch_num)
+
+    reader.decorate_batch_generator(generator)
 
     step = 0
     for epoch_step in range(args.epoch_num):
