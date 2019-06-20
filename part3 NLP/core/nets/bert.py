@@ -22,8 +22,8 @@ import json
 import numpy as np
 import paddle.fluid as fluid
 
-from core.module.transformer_encoder import encoder as encoder
-from core.module.transformer_encoder import pre_process_layer as pre_process_layer
+from core.nets.transformer_encoder import encoder as encoder
+from core.nets.transformer_encoder import pre_process_layer as pre_process_layer
 
 class BertModel(object):
     

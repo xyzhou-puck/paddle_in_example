@@ -3,16 +3,21 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import sys
 import argparse
+import json
+import yaml
 import six
 import logging
-import json
 
 logging_only_message = "%(message)s"
 logging_details = "%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s"
 
 class JsonConfig(object):
+    """
+    A high-level api for handling json configure file.
+    """
     def __init__(self, config_path):
         self._config_dict = self._parse(config_path)
 
@@ -49,7 +54,9 @@ class ArgumentGroup(object):
             **kwargs)
 
 class ArgConfig(object):
-    
+    """
+    A high-level api for handling argument configs.
+    """
     def __init__(self):
         parser = argparse.ArgumentParser()
 
@@ -109,25 +116,160 @@ def print_arguments(args, log = None):
             log.info('%s: %s' % (arg, value))
         log.info('------------------------------------------------')
 
+class PDConfig(object):
+    """
+    A high-level API for managing configuration files in PaddlePaddle.
+    Can jointly work with command-line-arugment, json files and yaml files.
+    """
+
+    def __init__(self, json_file = "", yaml_file = "", fuse_args = True):
+        """
+            Init funciton for PDConfig.
+            json_file: the path to the json configure file.
+            yaml_file: the path to the yaml configure file.
+            fuse_args: if fuse the json/yaml configs with argparse.
+        """
+        assert isinstance(json_file, str)
+        assert isinstance(yaml_file, str)
+        
+        if json_file != "" and yaml_file != "":
+            raise Warning("json_file and yaml_file can not co-exist for now. please only use one configure file type.")
+            return
+
+        self.args = None
+        self.arg_config = {}
+        self.json_config = {}
+        self.yaml_config = {}
+
+        parser = argparse.ArgumentParser()
+
+        self.default_g = ArgumentGroup(parser, "default", "default options.")
+        self.yaml_g = ArgumentGroup(parser, "yaml", "options from yaml.")
+        self.json_g =ArgumentGroup(parser, "json", "options from json.")
+        self.com_g = ArgumentGroup(parser, "custom", "customized options.")
+
+        self.default_g.add_arg("epoch",             int,        2,      "Number of epoches for training.")
+        self.default_g.add_arg("learning_rate",     float,      1e-2,   "Learning rate used to train.")
+        self.default_g.add_arg("do_train",          bool,       False,  "Whether to perform training.")
+        self.default_g.add_arg("do_predict",        bool,       False,  "Whether to perform predicting.")
+        self.default_g.add_arg("do_eval",           bool,       False,  "Whether to perform evaluating.")
+
+        self.parser = parser
+
+        if json_file != "":
+            self.load_json(json_file, fuse_args = fuse_args)
+
+        if yaml_file:
+            self.load_yaml(yaml_file, fuse_args = fuse_args)
+
+    def load_json(self, file_path, fuse_args = True):
+
+        if not os.path.exists(file_path):
+            raise Warning("the json file %s does not exist." % file_path)
+            return
+
+        with open(file_path, "r") as fin:
+            self.json_config = json.loads(fin.read())
+            fin.close()
+
+        if fuse_args:
+            for name in self.json_config:
+                if not isinstance(self.json_config[name], int) \
+                    and not isinstance(self.json_config[name], float) \
+                    and not isinstance(self.json_config[name], str) \
+                    and not isinstance(self.json_config[name], bool):
+                    
+                    continue
+
+                self.json_g.add_arg(name,   type(self.json_config[name]),   self.json_config[name], "This is from %s" % file_path)
+    
+    def load_yaml(self, file_path, fuse_args = True):
+
+        if not os.path.exists(file_path):
+            raise Warning("the yaml file %s does not exist." % file_path)
+            return
+
+        with open(file_path, "r") as fin:
+            self.yaml_config = yaml.load(fin, Loader=yaml.SafeLoader)
+            fin.close()
+
+        if fuse_args:
+            for name in self.yaml_config:
+                if not isinstance(self.yaml_config[name], int) \
+                    and not isinstance(self.yaml_config[name], float) \
+                    and not isinstance(self.yaml_config[name], str) \
+                    and not isinstance(self.yaml_config[name], bool):
+
+                    continue
+
+                self.yaml_g.add_arg(name,   type(self.yaml_config[name]),    self.yaml_config[name], "This is from %s" % file_path)
+
+    def build(self):
+        self.args = self.parser.parse_args()
+        self.arg_config = vars(self.args)
+
+    def __add__(self, new_arg):
+        assert isinstance(new_arg, list) or isinstance(new_arg, tuple)
+        assert len(new_arg) >= 3
+        assert self.args is None
+
+        name = new_arg[0]
+        dtype = new_arg[1]
+        dvalue = new_arg[2]
+        desc = new_arg[3] if len(new_arg) == 4 else "Description is not provided."
+
+        self.com_g.add_arg(name, dtype, dvalue, desc)
+
+        return self
+
+    def __getattr__(self, name):
+        if name in self.arg_config:
+            return self.arg_config[name]
+
+        if name in self.json_config:
+            return self.json_config[name]
+
+        if name in self.yaml_config:
+            return self.yaml_config[name]
+
+        raise Warning("The argument %s is not defined." % name)
+
+    def Print(self):
+
+        print("-"*70)
+        for name in self.arg_config:
+            print("%s:\t\t\t\t%s" % (str(name), str(self.arg_config[name])))
+
+        for name in self.json_config:
+            print("%s:\t\t\t\t%s" % (str(name), str(self.json_config[name])))
+
+        for name in self.yaml_config:
+            print("%s:\t\t\t\t%s" % (str(name), str(self.yaml_config[name])))
+
+        print("-"*70)
 
 if __name__ == "__main__":
 
-    args = ArgConfig()
-    args = args.build_conf()
+    """
+    pd_config = PDConfig(json_file = "./test/bert_config.json")
+    pd_config.build()
 
-    # using print()
-    print_arguments(args)
+    print(pd_config.do_train)
+    print(pd_config.hidden_size)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format=logging_details,
-        datefmt='%Y-%m-%d %H:%M:%S')
+    pd_config = PDConfig(yaml_file = "./test/bert_config.yaml")
+    pd_config.build()
 
-    # using logging
-    print_arguments(args, logging)
+    print(pd_config.do_train)
+    print(pd_config.hidden_size)
+    """
 
-    json_conf = JsonConfig("../../data/pretrained_models/uncased_L-12_H-768_A-12/bert_config.json")
-    json_conf.print_config()
+    pd_config = PDConfig(yaml_file = "./test/bert_config.yaml")
+    pd_config += ("my_age", int,    18, "I am forever 18.")
+    pd_config.build()
 
+    print(pd_config.do_train)
+    print(pd_config.hidden_size)
+    print(pd_config.my_age)
 
 

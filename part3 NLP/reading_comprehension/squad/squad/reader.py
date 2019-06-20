@@ -584,13 +584,14 @@ class DataProcessor(object):
                         return_input_mask=True,
                         return_max_len=False,
                         return_num_token=False)
-                    if len(all_dev_batches) < dev_count:
-                        all_dev_batches.append(batch_data)
+                    #if len(all_dev_batches) < dev_count:
+                    #    all_dev_batches.append(batch_data)
 
-                    if len(all_dev_batches) == dev_count:
-                        for batch in all_dev_batches:
-                            yield batch
-                        all_dev_batches = []
+                    #if len(all_dev_batches) == dev_count:
+                    #    for batch in all_dev_batches:
+                    #        yield batch
+                    #    all_dev_batches = []
+                    yield batch_data
 
                 if not is_training:
                     break

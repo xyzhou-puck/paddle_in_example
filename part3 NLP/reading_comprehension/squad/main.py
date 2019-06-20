@@ -1,11 +1,12 @@
 #encoding=utf8
 import os
 import sys
+sys.path.append("../../")
 import numpy as np
 import paddle
 import paddle.fluid as fluid
 
-from arg_config import ArgConfig, print_arguments
+from core.toolkit.configure import PDConfig
 
 from train import do_train
 from predict import do_predict
@@ -14,9 +15,9 @@ from inference_model import do_save_inference_model
 
 if __name__ == "__main__":
    
-    args = ArgConfig()
-    args = args.build_conf()
-    print_arguments(args)
+    args = PDConfig(yaml_file = "./data/config/squad1.yaml")
+    args.build()
+    args.Print()
 
     if args.do_train:
         do_train(args)

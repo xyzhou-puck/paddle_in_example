@@ -2,7 +2,7 @@
 
 import os
 import sys
-sys.path.append("../../")
+sys.path.append("../")
 import argparse
 from copy import deepcopy as copy
 import collections
@@ -177,11 +177,22 @@ def create_net(
     """
 
     if is_training:
-        src_ids, pos_ids, sent_ids, input_mask, input_span_mask, \
-            start_positions, end_positions, is_null_answer = model_input
+        src_ids = model_input.src_ids
+        pos_ids = model_input.pos_ids
+        sent_ids = model_input.sent_ids
+        input_mask = model_input.input_mask
+        input_span_mask = model_input.input_span_mask
+        start_positions = model_input.start_positions
+        end_positions = model_input.end_positions
+        is_null_answer = model_input.is_null_answer
     else:
-        src_ids, pos_ids, sent_ids, input_mask, input_span_mask, \
-            unique_id = model_input
+        src_ids = model_input.src_ids
+        pos_ids = model_input.pos_ids
+        sent_ids = model_input.sent_ids
+        input_mask = model_input.input_mask
+        input_span_mask = model_input.input_span_mask
+        unique_id = model_input.unique_id
+
 
     # define the model bert first
 

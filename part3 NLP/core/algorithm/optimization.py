@@ -19,7 +19,7 @@ from __future__ import print_function
 
 import numpy as np
 import paddle.fluid as fluid
-from core.extension.fp16 import create_master_params_grads, master_param_to_train_param
+from core.toolkit.fp16 import create_master_params_grads, master_param_to_train_param
 
 
 def linear_warmup_decay(learning_rate, warmup_steps, num_train_steps):

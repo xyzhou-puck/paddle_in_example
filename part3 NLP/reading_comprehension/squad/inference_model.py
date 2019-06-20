@@ -7,11 +7,11 @@ import argparse
 import collections
 import paddle
 import paddle.fluid as fluid
-from core.algorithm.optimization import optimization
 
-from arg_config import ArgConfig, print_arguments
+from core.toolkit.input_field import InputField
+from core.toolkit.configure import PDConfig
+
 from bert_mrc_net import create_net
-from squad.reader import DataProcessor, write_predictions
 
 def init_from_pretrain_model(args, exe, program):
     
@@ -32,7 +32,7 @@ def init_from_pretrain_model(args, exe, program):
         main_program=program,
         predicate=existed_params)
 
-    print("init model from pretrained params at %s" % (args.init_from_pretrain_model))
+    print("finsih init model from pretrained params from %s" % (args.init_from_pretrain_model))
 
     return True
 
@@ -44,8 +44,13 @@ def init_from_params(args, exe, program):
         raise Warning("the params path does not exist.")
         return False
 
-    fluid.io.load_params(executor = exe, dirname=args.init_from_params, main_program = program, filename = "params.pdparams")
-    print("init model from params at %s" % (args.init_from_params))
+    fluid.io.load_params(
+        executor = exe, 
+        dirname=args.init_from_params, 
+        main_program = program, 
+        filename = "params.pdparams")
+    
+    print("finish init model from params from %s" % (args.init_from_params))
 
     return True
 
@@ -60,56 +65,29 @@ def do_save_inference_model(args):
 
         with fluid.unique_name.guard():
             
-            # define reader
+            # define inputs of the network
 
-            src_ids = fluid.layers.data(
-                name = 'src_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
-            
-            pos_ids = fluid.layers.data(
-                name = 'pos_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
+            input_slots = [
+                {"name": "src_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "pos_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "sent_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "input_mask", "shape":(-1, args.max_seq_len, 1), "dtype":"float32"},
+                {"name": "input_span_mask", "shape":(-1, args.max_seq_len), "dtype":"float32"},
+                {"name": "unique_id", "shape":(-1, 1), "dtype":"int64"},
+            ]
 
-            sent_ids = fluid.layers.data(
-                name = 'sent_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
-
-            input_mask = fluid.layers.data(
-                name = 'input_mask', shape = [-1, args.max_seq_len, 1], dtype = "float32")
-
-            input_span_mask = fluid.layers.data(
-                name = 'input_span_mask', shape = [-1, args.max_seq_len], dtype = "float32")
-
-            unique_id = fluid.layers.data(
-                name = 'unique_id', shape = [-1, 1], dtype = "int64")
-
-            reader = fluid.io.PyReader(
-                feed_list=[src_ids, pos_ids, sent_ids, input_mask, input_span_mask, unique_id],
-                capacity=200, iterable=False)
-
-            processor = DataProcessor(
-                vocab_path = "./data/pretrain_models/bert_large_cased/vocab.txt",
-                do_lower_case = args.do_lower_case,
-                max_seq_length = args.max_seq_len,
-                in_tokens = False,
-                doc_stride = args.doc_stride,
-                do_stride = args.do_stride,
-                max_query_length = args.max_query_len)
-
-            generator = processor.data_generator(
-                data_path = args.predict_file,
-                batch_size = args.batch_size,
-                phase = "predict",
-                shuffle = False,
-                dev_count = 1,
-                epoch = 1)
-
-            reader.decorate_batch_generator(generator)
+            input_field = InputField(input_slots)
+            input_field.build(build_pyreader = True)
 
             # define the network
 
             predictions = create_net(is_training = False, 
-                model_input = [src_ids, pos_ids, sent_ids, input_mask, input_span_mask, unique_id], args = args)
+                model_input = input_field, args = args)
 
+            # declare the outputs to be fetched
             unique_ids, top_k_start_log_probs, top_k_start_indexes, top_k_end_log_probs, top_k_end_indexes = predictions
-            
+
+            # put all fetched outputs into fetch_list
             fetch_list = [unique_ids.name, top_k_start_log_probs.name, top_k_start_indexes.name,
                 top_k_end_log_probs.name, top_k_end_indexes.name]
 
@@ -133,9 +111,11 @@ def do_save_inference_model(args):
         init_from_pretrain_model(args, exe, test_prog)
 
     # saving inference model
+
     fluid.io.save_inference_model(
         args.inference_model_dir,
-        feeded_var_names = [src_ids.name, pos_ids.name, sent_ids.name, input_mask.name, input_span_mask.name, unique_id.name],
+        feeded_var_names = [input_field.src_ids.name, input_field.pos_ids.name, input_field.sent_ids.name, 
+                            input_field.input_mask.name, input_field.input_span_mask.name, input_field.unique_id.name],
         target_vars = [unique_ids, top_k_start_log_probs, top_k_start_indexes, top_k_end_log_probs, top_k_end_indexes],
         executor = exe,
         main_program = test_prog,
@@ -144,10 +124,12 @@ def do_save_inference_model(args):
 
     print("save inference model at %s" % (args.inference_model_dir))
 
+
 if __name__ == "__main__":
-    args = ArgConfig()
-    args = args.build_conf()
-    print_arguments(args)
+
+    args = PDConfig(yaml_file = "./data/config/squad1.yaml")
+    args.build()
+    args.Print()
 
     do_predict(args)
 

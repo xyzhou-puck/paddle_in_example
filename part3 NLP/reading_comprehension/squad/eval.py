@@ -2,7 +2,9 @@
 
 import os
 import sys
-from arg_config import ArgConfig
+
+from core.toolkit.configure import PDConfig
+
 from squad.evaluate_v1 import *
 
 def do_eval(args):
@@ -22,8 +24,9 @@ def do_eval(args):
         print(json.dumps(evaluate(dataset, predictions)))
 
 if __name__ == "__main__":
-    args = ArgConfig()
-    args = args.build_conf()
+
+    args = PDConfig(yaml_file = "./data/config/squad1.yaml")
+    args.build()
+    args.Print()
 
     do_eval(args)
-

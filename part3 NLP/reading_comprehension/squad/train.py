@@ -6,9 +6,13 @@ import numpy as np
 import argparse
 import paddle
 import paddle.fluid as fluid
+
+#include core lib in paddle-nlp
+from core.toolkit.input_field import InputField
+from core.toolkit.configure import PDConfig
 from core.algorithm.optimization import optimization
 
-from arg_config import ArgConfig, print_arguments
+# include task-specific libs
 from bert_mrc_net import create_net
 from squad.reader import DataProcessor, write_predictions
 
@@ -31,7 +35,7 @@ def init_from_pretrain_model(args, exe, program):
         main_program=program,
         predicate=existed_params)
 
-    print("init model from pretrained params at %s" % (args.init_from_pretrain_model))
+    print("finish initing model from pretrained params from %s" % (args.init_from_pretrain_model))
 
     return True
 
@@ -43,8 +47,13 @@ def init_from_checkpoint(args, exe, program):
         raise Warning("the checkpoint path does not exist.")
         return False
 
-    fluid.io.load_persistables(executor = exe, dirname=args.init_from_checkpoint, main_program = program, filename = "checkpoint.pdckpt")
-    print("init model from checkpoint at %s" % (args.init_from_checkpoint))
+    fluid.io.load_persistables(
+        executor = exe, 
+        dirname=args.init_from_checkpoint, 
+        main_program = program, 
+        filename = "checkpoint.pdckpt")
+
+    print("finish initing model from checkpoint from %s" % (args.init_from_checkpoint))
 
     return True
 
@@ -52,13 +61,18 @@ def save_checkpoint(args, exe, program, dirname):
     
     assert isinstance(args.save_model_path, str)
 
-    checkpoint_dir = args.save_model_path + "/" + args.save_checkpoint
+    checkpoint_dir = os.path.join(args.save_model_path, args.save_checkpoint)
 
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
 
-    fluid.io.save_persistables(exe, checkpoint_dir + "/" + dirname, main_program = program, filename = "checkpoint.pdckpt")
-    print("save checkpoint at %s" % (checkpoint_dir + "/" + dirname))
+    fluid.io.save_persistables(
+        exe, 
+        os.path.join(checkpoint_dir, dirname),
+        main_program = program, 
+        filename = "checkpoint.pdparams")
+    
+    print("save checkpoint at %s" % (os.path.join(checkpoint_dir, dirname)))
 
     return True
 
@@ -66,13 +80,17 @@ def save_param(args, exe, program, dirname):
 
     assert isinstance(args.save_model_path, str)
     
-    param_dir = args.save_model_path + "/" + args.save_param
+    param_dir = os.path.join(args.save_model_path, args.save_param)
 
     if not os.path.exists(param_dir):
         os.mkdir(param_dir)
 
-    fluid.io.save_params(exe, param_dir + "/" + dirname, main_program = program, filename = "params.pdparams")
-    print("save parameters at %s" % (param_dir + "/" + dirname))
+    fluid.io.save_params(
+        exe, 
+        os.path.join(param_dir, dirname),
+        main_program = program, 
+        filename = "params.pdparams")
+    print("save parameters at %s" % (os.path.join(param_dir, dirname)))
 
     return True
 
@@ -88,64 +106,62 @@ def do_train(args):
 
         with fluid.unique_name.guard():
             
-            # define reader
+            # define input and reader
 
-            src_ids = fluid.layers.data(
-                name = 'src_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
-            
-            pos_ids = fluid.layers.data(
-                name = 'pos_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
+            input_slots = [
+                {"name": "src_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "pos_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "sent_ids", "shape":(-1, args.max_seq_len, 1), "dtype":"int64"},
+                {"name": "input_mask", "shape":(-1, args.max_seq_len, 1), "dtype":"float32"},
+                {"name": "input_span_mask", "shape":(-1, args.max_seq_len), "dtype":"float32"},
+                {"name": "start_positions", "shape":(-1, 1), "dtype":"int64"},
+                {"name": "end_positions", "shape":(-1, 1), "dtype":"int64"},
+                {"name": "is_null_answer", "shape":(-1, 1), "dtype":"int64"} ]
 
-            sent_ids = fluid.layers.data(
-                name = 'sent_ids', shape = [-1, args.max_seq_len, 1], dtype = "int64")
-
-            input_mask = fluid.layers.data(
-                name = 'input_mask', shape = [-1, args.max_seq_len, 1], dtype = "float32")
-
-            input_span_mask = fluid.layers.data(
-                name = 'input_span_mask', shape = [-1, args.max_seq_len], dtype = "float32")
-
-            start_positions = fluid.layers.data(
-                name = 'start_positions', shape = [-1, 1], dtype = "int64")
-
-            end_positions = fluid.layers.data(
-                name = 'end_positions', shape = [-1, 1], dtype = "int64")
-
-            is_null_answer = fluid.layers.data(
-                name = 'is_null_answer', shape = [-1, 1], dtype = "int64")
-
-            reader = fluid.io.PyReader(
-                feed_list=[src_ids, pos_ids, sent_ids, input_mask, input_span_mask, \
-                    start_positions, end_positions, is_null_answer],
-                capacity=200, iterable=False)
+            input_field = InputField(input_slots)
+            input_field.build(build_pyreader = True)
 
             # define the network
 
             loss = create_net(is_training = True, 
-                model_input = [src_ids, pos_ids, sent_ids, input_mask, input_span_mask, \
-                    start_positions, end_positions, is_null_answer], args = args)
+                model_input = input_field, args = args)
             
             loss.persistable = True
 
-            # define optimizer for learning
+            # define the optimizer
 
             if args.use_cuda:
                 dev_count = fluid.core.get_cuda_device_count()
             else:
                 dev_count = int(os.environ.get('CPU_NUM', multiprocessing.cpu_count()))
 
+            # as we need to get the max training steps for warmup training,
+            # we define the data processer in advance
+            # usually, we can declare data processor later, outsides the program_gurad scope
+
             processor = DataProcessor(
                 vocab_path = args.vocab_path,
                 do_lower_case = args.do_lower_case,
                 max_seq_length = args.max_seq_len,
-                in_tokens = False,
+                in_tokens = args.in_tokens,
                 doc_stride = args.doc_stride,
                 do_stride = args.do_stride,
                 max_query_length = args.max_query_len)
 
+            ## define the data generator
+            batch_generator = processor.data_generator(
+                data_path = args.training_file,
+                batch_size = args.batch_size,
+                phase = "train",
+                shuffle = True,
+                dev_count = dev_count,
+                epoch = args.epoch)
+
             num_train_examples = processor.get_num_examples(phase='train')
-            max_train_steps = args.epoch_num * num_train_examples // dev_count // args.batch_size
+            max_train_steps = args.epoch * num_train_examples // dev_count // args.batch_size
             warmup_steps = int(max_train_steps * args.warmup_proportion)
+            
+            print(max_train_steps, warmup_steps, num_train_examples)
 
             optimizor = optimization(
                 loss = loss,
@@ -162,6 +178,11 @@ def do_train(args):
 
     # prepare training
 
+    ## decorate the pyreader with batch_generator
+    input_field.reader.decorate_batch_generator(batch_generator)
+
+    ## define the executor and program for training
+
     if args.use_cuda:
         place = fluid.CUDAPlace(0)
     else:
@@ -171,11 +192,13 @@ def do_train(args):
 
     exe.run(startup_prog)
 
-    assert (args.init_from_checkpoint is None) or (args.init_from_pretrain_model is None)
+    assert (args.init_from_checkpoint == "") or (args.init_from_pretrain_model == "")
 
+    ## init from some checkpoint, to resume the previous training
     if args.init_from_checkpoint:
         init_from_checkpoint(args, exe, train_prog)
 
+    ## init from some pretrain models, to better solve the current task
     if args.init_from_pretrain_model:
         init_from_pretrain_model(args, exe, train_prog)
 
@@ -186,19 +209,10 @@ def do_train(args):
         loss_name = loss.name, build_strategy = build_strategy)
 
     # start training
-    generator = processor.data_generator(
-        data_path = args.training_file,
-        batch_size = args.batch_size,
-        phase = "train",
-        shuffle = True,
-        dev_count = 4,
-        epoch = args.epoch_num)
-
-    reader.decorate_batch_generator(generator)
 
     step = 0
-    for epoch_step in range(args.epoch_num):
-        reader.start()
+    for epoch_step in range(args.epoch):
+        input_field.reader.start()
         while True:
             try:
 
@@ -224,7 +238,7 @@ def do_train(args):
                 step += 1
 
             except fluid.core.EOFException:
-                reader.reset()
+                input_field.reader.reset()
                 break
 
     if args.save_checkpoint:
@@ -236,9 +250,9 @@ def do_train(args):
 
 
 if __name__ == "__main__":
-    args = ArgConfig()
-    args = args.build_conf()
-    print_arguments(args)
+    args = PDConfig(yaml_file = "./data/config/squad1.yaml")
+    args.build()
+    args.Print()
 
     do_train(args)
 
