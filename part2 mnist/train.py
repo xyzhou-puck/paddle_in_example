@@ -80,8 +80,6 @@ def do_train(args):
                     buf_size = 500),
                 batch_size = args.batch_size)
 
-            test_data = next(generator())
-
             reader.decorate_sample_list_generator(generator)
             
             # define the network
