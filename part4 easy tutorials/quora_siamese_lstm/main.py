@@ -193,7 +193,7 @@ if __name__ == '__main__':
 
     # eval
     print "evaling..."
-    q1 = "What is the benefit of Quora?"
+    q1 = "What is the main benefit of Quora?"
     q2 = "What are the advantages of using Quora?"
 
     print "input pair: \n{}\n{}\n".format(q1,q2)
