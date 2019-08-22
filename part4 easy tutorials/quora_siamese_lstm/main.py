@@ -8,6 +8,7 @@ import csv
 
 
 def build_data_layer(max_len, sync=True, inputs_generator_fn=None):
+
     x1 = layers.data('tok1', shape=[-1, max_len, 1], dtype='int64')
     x2 = layers.data('tok2', shape=[-1, max_len, 1], dtype='int64')
     l1 = layers.data('len1', shape=[-1], dtype='int64')
@@ -98,7 +99,7 @@ def build_train_program(conf, data_gen_fn):
         loss = fluid.layers.softmax_with_cross_entropy(prediction, label=y)
         loss = fluid.layers.reduce_mean(loss)
         accuracy = fluid.layers.accuracy(input=prediction, label=y)
-        adam_optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+        adam_optimizer = fluid.optimizer.Adam(learning_rate=0.005)
         adam_optimizer.minimize(loss)
 
     fetch_list = [loss, accuracy]
@@ -136,13 +137,14 @@ if __name__ == '__main__':
         "hidden_size": 256,
     }
 
-    print "read raw data"
+    print "read raw data and shuffle..."
     reader = csv.reader(open('./quora_duplicate_questions.tsv'), delimiter='\t')
     raw_data = [i[3:6] for i in reader]
     del raw_data[0]
     np.random.shuffle(raw_data)
 
-    print "construct dict"
+    # build dict
+    print "build dict..."
     tokens = []
     labels = []
     word_freq = Counter()
@@ -161,20 +163,27 @@ if __name__ == '__main__':
     word_to_id['<UNK>'] = 1
     conf['vocab_size'] = len(word_to_id)
 
+    # convert tokens to ids
+    print "processing..."
     examples = [[word_to_id.get(w, 1) for w in t] for t in tokens]
     examples = np.reshape(examples, [-1, 2])
 
-    print "construct generator"
+    # build batch generator
     train_generator_fn = create_batch_generator(examples, labels, conf['batch_size'], conf['max_len'], conf['num_epochs'], is_train=True)
 
-    print('building train prog')
+    # build train and eval program
     init_prog, train_prog, fetch_list, feed_list = build_train_program(conf, train_generator_fn)
     with fluid.unique_name.guard():    
         test_prog, test_fetch_list, test_feed_list = build_test_program(conf)
 
+    # build executor
     exe = build_executor(use_gpu=True)
 
+    # initialize
     exe.run(init_prog)
+
+    # do train
+    print "training..."
     steps = 0
     for batch in train_generator_fn():
         steps += 1
@@ -182,9 +191,12 @@ if __name__ == '__main__':
         if steps % 20 == 0:
             print("step {}, loss {}, acc {}.".format(steps, loss, acc))
 
-    q1 = "What is the main benefit of Quora?"
+    # eval
+    print "evaling..."
+    q1 = "What is the benefit of Quora?"
     q2 = "What are the advantages of using Quora?"
 
+    print "input pair: \n{}\n{}\n".format(q1,q2)
     q1 = nltk.word_tokenize(q1.lower())
     q2 = nltk.word_tokenize(q2.lower())
 
@@ -197,6 +209,7 @@ if __name__ == '__main__':
     len2 = array_normalize([len(q2)], expand_dims=False)
 
     batch = [q1, q2, len1, len2]
-    pred = exe.run(test_prog, fetch_list=test_fetch_list, feed={i: j for i,j in zip(test_feed_list, batch)})[0]
+    pred = exe.run(test_prog, fetch_list=test_fetch_list, feed={i: j for i,j in zip(test_feed_list, batch)})[0][0][1]
+    print "similarity (0 ~ 1):"
     print pred
 
