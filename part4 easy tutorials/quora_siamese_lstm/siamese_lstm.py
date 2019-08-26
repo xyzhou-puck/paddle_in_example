@@ -33,7 +33,8 @@ def create_batch_generator(examples, labels, batch_size, max_len, num_epochs=1, 
         batch_l2 = []
         batch_y = []
         for i in range(num_epochs):
-            print('Training epoch {}:'.format(i))
+            if is_train:
+                print('Training epoch {}:'.format(i))
             for (_x1, _x2), _y in zip(examples, labels):
                 _x1 = _x1[:max_len]
                 _x2 = _x2[:max_len]
@@ -77,9 +78,10 @@ def siamLSTM(tok_ids1, tok_ids2, len1, len2, conf):
     emb1 = layers.embedding(tok_ids1, size=[conf['vocab_size'], conf['hidden_size']], dtype='float32', is_sparse=False, param_attr=emb)
     emb2 = layers.embedding(tok_ids2, size=[conf['vocab_size'], conf['hidden_size']], dtype='float32', is_sparse=False, param_attr=emb)
 
-    tmp = fluid.ParamAttr('lstm')
-    _, enc_out1, _ = fluid.contrib.layers.basic_lstm(emb1, None, None, conf['hidden_size'], sequence_length=len1, param_attr=tmp)
-    _, enc_out2, _ = fluid.contrib.layers.basic_lstm(emb2, None, None, conf['hidden_size'], sequence_length=len2, param_attr=tmp)
+    w = fluid.ParamAttr('lstm_w')
+    b = fluid.ParamAttr('lstm_b')
+    _, enc_out1, _ = fluid.contrib.layers.basic_lstm(emb1, None, None, conf['hidden_size'], sequence_length=len1, param_attr=w, bias_attr=b)
+    _, enc_out2, _ = fluid.contrib.layers.basic_lstm(emb2, None, None, conf['hidden_size'], sequence_length=len2, param_attr=w, bias_attr=b)
 
     enc_out1 = layers.squeeze(enc_out1, [0])
     enc_out2 = layers.squeeze(enc_out2, [0])
