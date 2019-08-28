@@ -1,0 +1,6 @@
+mnist_antirectifier
+https://github.com/rstudio/keras/blob/master/vignettes/examples/mnist_antirectifier.R
+
+Demonstrates how to write custom layers for paddle.
+
+Gets to 97.63% test accuracy after 40 epochs. 

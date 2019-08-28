@@ -1,0 +1,7 @@
+mnist_mlp
+
+https://github.com/rstudio/keras/blob/master/vignettes/examples/mnist_mlp.R
+
+Trains a simple deep NN on the MNIST dataset.
+
+Gets to 97.32% test accuracy after 20 epochs. 
