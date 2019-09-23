@@ -38,7 +38,6 @@ import os
 
 from args import *
 from base_model import BaseModel
-from attention_model import AttentionModel
 import logging
 import pickle
 
